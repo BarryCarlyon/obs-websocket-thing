@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Websocket test page</title>
+
+        <script
+            type="text/javascript"
+            src="https://cdn.jsdelivr.net/npm/obs-websocket-js"
+        ></script>
+
+        <!-- style type="text/css">
+            html,
+            body {
+                background: #0f0f0f;
+                color: #f1f1f1;
+                font-family: "Courier New", Courier, monospace;
+            }
+            label {
+                width: 20%;
+                text-align: right;
+                display: inline-block;
+            }
+        </style -->
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+            crossorigin="anonymous"
+        />
+    </head>
+    <body>
+        <form action="" method="post" id="tester">
+            <fieldset>
+                <legend>Request</legend>
+                <div class="input-group">
+                    <label for="request" class="input-group-text"
+                        >RequestType</label
+                    >
+                    <select name="request" id="request" class="form-select">
+                        <option value="">-- Select --</option>
+                    </select>
+                    <input
+                        type="text"
+                        name="requestSearch"
+                        list="obsCommands"
+                        class="form-control"
+                        placeholder="Find Command"
+                    />
+                    <datalist id="obsCommands"></datalist>
+                </div>
+                <legend>RequestFields</legend>
+                <div name="requestFields"></div>
+            </fieldset>
+            <fieldset class="btn-group">
+                <input type="submit" class="d-block btn btn-outline-primary" />
+            </fieldset>
+            <fieldset>
+                <legend>Response</legend>
+                <table id="response"></table>
+            </fieldset>
+        </form>
+        <div id="output"></div>
+
+        <script type="text/javascript">
+            const obs = new OBSWebSocket();
+            async function go() {
+                try {
+                    await obs.connect("ws://127.0.0.1:4455", "");
+                } catch (e) {
+                    console.error("Failed to connect", e);
+                    return;
+                }
+                // get basics
+            }
+
+            /*
+            function dumpToOutput(rec) {
+                let d = document.createElement("div");
+                output.prepend(d);
+
+                try {
+                    let tbl = document.createElement("table");
+                    d.append(tbl);
+                    for (var k in rec) {
+                        let r = tbl.insertRow();
+
+                        let th = r.insertCell();
+                        th.textContent = k;
+
+                        let td = r.insertCell();
+                        console.log("k", k, typeof rec[k]);
+
+                        //if (typeof rec[k] == 'object') {
+                        if (Array.isArray(rec[k])) {
+                            //td.textContent = JSON.stringify(rec[k]);
+                            let subtbl = document.createElement("table");
+                            td.append(subtbl);
+
+                            //for (var i in k) {
+                            for (var x = 0; x < rec[k].length; x++) {
+                                let r = subtbl.insertRow();
+                                let td = r.insertCell();
+                                //th.textContent = JSON.stringify(rec[k][x]);
+
+                                let subsubtbl = document.createElement("table");
+                                td.append(subsubtbl);
+
+                                for (var l in rec[k][x]) {
+                                    let r = subsubtbl.insertRow();
+                                    let th = r.insertCell();
+                                    th.textContent = l;
+                                    let td = r.insertCell();
+                                    td.textContent = JSON.stringify(
+                                        rec[k][x][l],
+                                    );
+                                }
+                            }
+                        } else {
+                            td.textContent = JSON.stringify(rec[k]);
+                        }
+                    }
+                } catch (e) {
+                    console.log("failed go def", e);
+                    d.textContent = JSON.stringify(rec);
+                }
+            }
+
+            async function doThing(func, vars) {
+                try {
+                    let r = await obs.call(func, vars);
+                    dumpToOutput(r);
+                } catch (e) {
+                    console.log(e);
+                    dumpToOutput(e);
+                }
+            }
+            */
+
+            async function build() {
+                let protoReq = await fetch("./protocol.json");
+                let { enums, requests, events } = await protoReq.json();
+
+                console.log("build", requests.length);
+                let sel = document.querySelector('select[name="request"]');
+                for (var x = 0; x < requests.length; x++) {
+                    let { category, requestType } = requests[x];
+                    let optGroup = sel.querySelector(
+                        `optgroup[label="${category}"]`,
+                    );
+                    if (!optGroup) {
+                        optGroup = document.createElement("optgroup");
+                        optGroup.setAttribute("label", category);
+                        sel.append(optGroup);
+                    }
+
+                    let opt = document.createElement("option");
+                    optGroup.append(opt);
+                    opt.textContent = requestType;
+
+                    //obsCommands.append(opt.cloneNode(true));
+                    let dataopt = document.createElement("option");
+                    dataopt.textContent = `${category} - ${requestType}`;
+                    dataopt.value = requestType;
+                    obsCommands.append(dataopt);
+                }
+                sel.addEventListener("change", (e) => {
+                    let task = e.target.value;
+                    document.querySelector(
+                        'div[name="requestFields"]',
+                    ).textContent = "";
+
+                    for (var x = 0; x < requests.length; x++) {
+                        let { requestType, requestFields, responseFields } =
+                            requests[x];
+
+                        // is this a Set? Does it have a GET
+                        // lets invoke the GET and populate the field
+
+                        if (requestType != task) {
+                            continue;
+                        }
+
+                        for (var y = 0; y < requestFields.length; y++) {
+                            let { valueName, valueDescription, valueType } =
+                                requestFields[y];
+                            let {
+                                valueRestrictions,
+                                valueOptional,
+                                valueOptionalBehavior,
+                            } = requestFields[y];
+
+                            let d = document.createElement("div");
+                            d.classList.add("input-group");
+                            document
+                                .querySelector('div[name="requestFields"]')
+                                .append(d);
+
+                            let lbl = document.createElement("label");
+                            lbl.textContent = valueName;
+                            lbl.setAttribute("for", valueName);
+                            lbl.classList.add("input-group-text");
+                            d.append(lbl);
+
+                            let inp = document.createElement("input");
+                            inp.setAttribute("name", valueName);
+                            inp.setAttribute("id", valueName);
+                            inp.classList.add("form-control");
+                            d.append(inp);
+
+                            let hlp = document.createElement("div");
+                            hlp.textContent = valueDescription;
+                            hlp.classList.add("input-group-text");
+                            d.append(hlp);
+                        }
+                    }
+                });
+
+                tester.addEventListener("submit", async (e) => {
+                    e.preventDefault();
+
+                    let callFunc = document.querySelector(
+                        'select[name="request"]',
+                    ).value;
+                    // collect fields
+
+                    let resp = await obs.call(callFunc);
+                    console.log(resp);
+                });
+            }
+            build();
+
+            //go();
+        </script>
+    </body>
+</html>
