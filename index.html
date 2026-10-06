@@ -10,25 +10,25 @@
             src="https://cdn.jsdelivr.net/npm/obs-websocket-js"
         ></script>
 
-        <!-- style type="text/css">
-            html,
-            body {
-                background: #0f0f0f;
-                color: #f1f1f1;
-                font-family: "Courier New", Courier, monospace;
-            }
-            label {
-                width: 20%;
-                text-align: right;
-                display: inline-block;
-            }
-        </style -->
         <link
             href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
             rel="stylesheet"
             integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
             crossorigin="anonymous"
         />
+        <style type="text/css">
+            #tester {
+            }
+            #response {
+            }
+            #connect {
+                margin-top: 1px solid black;
+                position: fixed;
+                bottom: 0px;
+                left: 0px;
+                right: 0px;
+            }
+        </style>
     </head>
     <body>
         <form action="" method="post" id="tester">
@@ -38,17 +38,18 @@
                     <label for="request" class="input-group-text"
                         >RequestType</label
                     >
-                    <select name="request" id="request" class="form-select">
-                        <option value="">-- Select --</option>
-                    </select>
                     <input
                         type="text"
-                        name="requestSearch"
+                        name="request"
                         list="obsCommands"
                         class="form-control"
                         placeholder="Find Command"
                     />
                     <datalist id="obsCommands"></datalist>
+                    <input
+                        type="submit"
+                        class="d-block btn btn-outline-primary"
+                    />
                 </div>
                 <legend>RequestFields</legend>
                 <div name="requestFields"></div>
@@ -56,23 +57,93 @@
             <fieldset class="btn-group">
                 <input type="submit" class="d-block btn btn-outline-primary" />
             </fieldset>
+        </form>
+
+        <div id="response">
+            <h3>Response</h3>
+            <table id="response"></table>
+        </div>
+
+        <form action="" method="post" id="connect">
             <fieldset>
-                <legend>Response</legend>
-                <table id="response"></table>
+                <div class="input-group">
+                    <div class="input-group-text">Connect</div>
+                    <input
+                        type="text"
+                        name="websocket_uri"
+                        class="form-control col-1"
+                        value="ws://127.0.0.1:4455"
+                    />
+                    <input
+                        type="password"
+                        name="websocket_password"
+                        class="form-control col-1"
+                        value=""
+                    />
+                    <div
+                        class="input-group-text col-8"
+                        id="connect_response"
+                    ></div>
+                    <input
+                        type="submit"
+                        class="btn btn-outline-primary"
+                        value="Connect"
+                    />
+                </div>
             </fieldset>
         </form>
+
         <div id="output"></div>
 
         <script type="text/javascript">
+            function mkTable() {
+                let tbl = document.createElement("table");
+                tbl.classList.add("table");
+                return tbl;
+            }
+        </script>
+        <script type="text/javascript">
+            let protoData = {};
             const obs = new OBSWebSocket();
-            async function go() {
+            async function go(e) {
+                e.preventDefault();
+                connect_response.textContent = "Connecting";
+
+                let uri = document.querySelector(
+                    'input[name="websocket_uri"]',
+                ).value;
+                let passwrd = document.querySelector(
+                    'input[name="websocket_password"]',
+                ).value;
+
                 try {
-                    await obs.connect("ws://127.0.0.1:4455", "");
+                    await obs.connect(uri, passwrd);
+                    connect_response.textContent = "Connected";
                 } catch (e) {
                     console.error("Failed to connect", e);
+                    connect_response.textContent = e.message
+                        ? e.message
+                        : "Failed to Connect";
                     return;
                 }
                 // get basics
+            }
+            connect.addEventListener("submit", go);
+
+            function grabParameters(task) {
+                let { enums, requests, events } = protoData;
+
+                for (var x = 0; x < requests.length; x++) {
+                    let { requestType } = requests[x];
+
+                    if (requestType != task) {
+                        continue;
+                    }
+
+                    return requests[x];
+                }
+
+                return null;
             }
 
             /*
@@ -140,47 +211,33 @@
 
             async function build() {
                 let protoReq = await fetch("./protocol.json");
-                let { enums, requests, events } = await protoReq.json();
+                protoData = await protoReq.json();
+                let { enums, requests, events } = protoData;
 
                 console.log("build", requests.length);
-                let sel = document.querySelector('select[name="request"]');
                 for (var x = 0; x < requests.length; x++) {
                     let { category, requestType } = requests[x];
-                    let optGroup = sel.querySelector(
-                        `optgroup[label="${category}"]`,
-                    );
-                    if (!optGroup) {
-                        optGroup = document.createElement("optgroup");
-                        optGroup.setAttribute("label", category);
-                        sel.append(optGroup);
-                    }
 
-                    let opt = document.createElement("option");
-                    optGroup.append(opt);
-                    opt.textContent = requestType;
-
-                    //obsCommands.append(opt.cloneNode(true));
                     let dataopt = document.createElement("option");
                     dataopt.textContent = `${category} - ${requestType}`;
                     dataopt.value = requestType;
                     obsCommands.append(dataopt);
                 }
-                sel.addEventListener("change", (e) => {
-                    let task = e.target.value;
-                    document.querySelector(
-                        'div[name="requestFields"]',
-                    ).textContent = "";
+                document
+                    .querySelector('[name="request"]')
+                    .addEventListener("change", (e) => {
+                        document.querySelector(
+                            'div[name="requestFields"]',
+                        ).textContent = "";
+                        let task = e.target.value;
 
-                    for (var x = 0; x < requests.length; x++) {
-                        let { requestType, requestFields, responseFields } =
-                            requests[x];
-
-                        // is this a Set? Does it have a GET
-                        // lets invoke the GET and populate the field
-
-                        if (requestType != task) {
-                            continue;
+                        let reqFound = grabParameters(task);
+                        if (!reqFound) {
+                            // err what
+                            return;
                         }
+                        let { requestType, requestFields, responseFields } =
+                            reqFound;
 
                         for (var y = 0; y < requestFields.length; y++) {
                             let { valueName, valueDescription, valueType } =
@@ -214,24 +271,71 @@
                             hlp.classList.add("input-group-text");
                             d.append(hlp);
                         }
-                    }
-                });
+                    });
 
                 tester.addEventListener("submit", async (e) => {
                     e.preventDefault();
-
                     let callFunc = document.querySelector(
-                        'select[name="request"]',
+                        'input[name="request"]',
                     ).value;
-                    // collect fields
 
+                    let reqFound = grabParameters(callFunc);
+                    if (!reqFound) {
+                        // err what
+                        return;
+                    }
+                    let { requestType, requestFields, responseFields } =
+                        reqFound;
+
+                    // collect fields
+                    for (var y = 0; y < requestFields.length; y++) {}
+
+                    // go
                     let resp = await obs.call(callFunc);
                     console.log(resp);
+
+                    console.log("responseFields.length", responseFields.length);
+                    // response
+                    if (responseFields.length == 1) {
+                        let { valueName, valueType } = responseFields[0];
+                        let data = resp[valueName];
+
+                        if (valueType == "Array<Object>") {
+                            let tbl = mkTable();
+                            output.append(tbl);
+
+                            for (let x = 0; x < data.length; x++) {
+                                let row = tbl.insertRow();
+                                for (var key in data[x]) {
+                                    var l = row.insertCell();
+                                    l.textContent = key;
+                                    var r = row.insertCell();
+
+                                    if (typeof data[x][key] == "object") {
+                                        let stbl = mkTable();
+                                        r.append(stbl);
+
+                                        for (var skey in data[x][key]) {
+                                            let srow = stbl.insertRow();
+                                            var l = srow.insertCell();
+                                            l.textContent = skey;
+                                            var l = srow.insertCell();
+                                            l.textContent = data[x][key][skey];
+                                        }
+                                    } else {
+                                        r.textContent = data[x][key];
+                                    }
+                                }
+                            }
+                        } else {
+                            //
+                        }
+                    } else {
+                        // iterate all
+                    }
                 });
             }
             build();
-
-            //go();
         </script>
     </body>
 </html>
